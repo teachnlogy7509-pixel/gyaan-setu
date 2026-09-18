@@ -112,3 +112,21 @@ create index if not exists sections_batch_idx on public.sections(batch_id);
 create index if not exists posts_section_created_idx on public.posts(section_id, created_at desc);
 create index if not exists comments_post_created_idx on public.comments(post_id, created_at asc);
 create index if not exists batch_enrollments_user_idx on public.batch_enrollments(user_id, status);
+
+-- Five lightweight reactions, isolated through the same post -> section -> batch access rule.
+create table if not exists public.post_reactions (
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction_type text not null check (reaction_type in ('like', 'love', 'helpful', 'fire', 'celebrate')),
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id, reaction_type)
+);
+
+alter table public.post_reactions enable row level security;
+drop policy if exists "Enrolled users view reactions" on public.post_reactions;
+create policy "Enrolled users view reactions" on public.post_reactions for select using (public.is_post_enrolled(post_id));
+drop policy if exists "Enrolled users add reactions" on public.post_reactions;
+create policy "Enrolled users add reactions" on public.post_reactions for insert with check ((select auth.uid()) = user_id and public.is_post_enrolled(post_id));
+drop policy if exists "Users remove own reactions" on public.post_reactions;
+create policy "Users remove own reactions" on public.post_reactions for delete using ((select auth.uid()) = user_id and public.is_post_enrolled(post_id));
+create index if not exists post_reactions_post_idx on public.post_reactions(post_id, reaction_type);

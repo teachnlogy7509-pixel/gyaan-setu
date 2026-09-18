@@ -1,0 +1,34 @@
+name: Wire shared Rathod UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - shared-rathod-sync.js
+      - .github/workflows/wire-shared-rathod-ui.yml
+
+permissions:
+  contents: write
+
+jobs:
+  inject:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add shared UI script to the page
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          page = Path('index.html')
+          tag = '<script src="shared-rathod-sync.js" defer></script>'
+          text = page.read_text()
+          if tag not in text:
+              text = text.replace('</body>', tag + '</body>')
+              page.write_text(text)
+          PY
+      - name: Commit the wiring change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet || (git commit -m "Wire shared Rathod UI into GyaanSetu" && git push)

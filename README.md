@@ -1,31 +1,27 @@
 # GyaanSetu
 
-A community-first learning app for subject rooms, streaks, leaderboards, doubts, and shared study material. The visual language is original and inspired by the warmth and structure of modern Indian learning communities.
+GyaanSetu is a batch-wise student community for focused learning, discussion, and doubt solving.
 
-## Current MVP
+## Current batch community MVP
 
-- Subject rooms: Botany, Physics, Chemistry, Zoology, and Maths.
-- Community pulse with learner posts, likes, comments, and sharing affordances.
-- Streak check-in flow with Supabase-backed daily activity.
-- Weekly leaderboard with points and streaks.
-- Supabase Auth for learner accounts.
-- PDF/study vault placeholder ready for the next phase.
-- Responsive desktop/mobile navigation.
+- Collapsible left sidebar with enrolled-batch navigation.
+- Batches: Yakeen NEET Hindi 2027, Yakeen NEET Hindi 2.0 2027, and Yakeen NEET Hindi 3.0 2027.
+- Every batch has two isolated sections: Community and Doubt Section.
+- Posts and comments are linked to a section, so content cannot cross between batches or section types.
+- Supabase Auth and role-aware batch enrollment (`student`, `teacher`, `admin`).
+- Row Level Security allows only active enrolled users to read or write a batch.
+- Streak and leaderboard UI remain available as the next layer around the community.
+
+## Data model
+
+- `batches`: id, name, slug, description, position.
+- `sections`: id, batch_id, type (`community` or `doubt`), name.
+- `batch_enrollments`: batch_id, user_id, role, status.
+- `posts`: id, section_id, user_id, content, created_at.
+- `comments`: post_id, user_id, content, created_at.
 
 ## Stack
 
-- HTML, CSS, and modern browser JavaScript.
-- Supabase Auth and Postgres with Row Level Security.
-- GitHub source control.
+HTML, CSS, browser JavaScript, Supabase Auth/Postgres/RLS, and GitHub.
 
-## Supabase setup
-
-The existing course MVP tables remain in the connected project. Run `supabase/schema.sql` to add the community-first tables and seed the subject rooms, sample posts, leaderboard, and future PDF metadata.
-
-## Next build slices
-
-- Real post creation, replies, moderation, and notifications.
-- Upload PDFs to Supabase Storage and show them inside each subject room.
-- Full leaderboard history and streak recovery rules.
-- Admin/teacher room controls.
-- Payments and live classes later, after the community foundation is stable.
+Run `supabase/schema.sql` in the connected Supabase project before using real enrolled accounts.

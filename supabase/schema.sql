@@ -1,127 +1,114 @@
--- GyaanSetu community-first MVP additions
--- Keeps the existing course tables and adds rooms, discussions, streaks, leaderboard, and future PDF metadata.
+-- GyaanSetu batch-wise community and doubt system
+-- Every post/comment is scoped through section -> batch, and RLS checks enrollment.
 
-create table if not exists public.subjects (
-  id text primary key,
+create extension if not exists pgcrypto;
+
+create table if not exists public.batches (
+  id uuid primary key default gen_random_uuid(),
   name text not null,
+  slug text not null unique,
   description text,
-  learner_count text not null default 'new room',
-  accent text not null default 'green',
-  icon text not null default '✦',
   position integer not null default 1,
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.community_posts (
+create table if not exists public.sections (
   id uuid primary key default gen_random_uuid(),
-  subject_id text not null references public.subjects(id) on delete cascade,
-  author_name text not null,
-  initials text not null,
-  role text not null default 'Learner',
-  content text not null,
-  likes integer not null default 0,
-  comments integer not null default 0,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.community_members (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  subject_id text not null references public.subjects(id) on delete cascade,
+  batch_id uuid not null references public.batches(id) on delete cascade,
+  type text not null check (type in ('community', 'doubt')),
+  name text not null,
   created_at timestamptz not null default now(),
-  primary key (user_id, subject_id)
+  unique (batch_id, type)
 );
 
-create table if not exists public.daily_activity (
+create table if not exists public.batch_enrollments (
+  batch_id uuid not null references public.batches(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  activity_date date not null,
-  points integer not null default 10,
-  created_at timestamptz not null default now(),
-  primary key (user_id, activity_date)
+  role text not null default 'student' check (role in ('student', 'teacher', 'admin')),
+  status text not null default 'active' check (status in ('active', 'revoked')),
+  enrolled_at timestamptz not null default now(),
+  primary key (batch_id, user_id)
 );
 
-create table if not exists public.leaderboard_points (
+create table if not exists public.posts (
   id uuid primary key default gen_random_uuid(),
+  section_id uuid not null references public.sections(id) on delete cascade,
   user_id uuid references auth.users(id) on delete set null,
-  display_name text not null,
-  initials text not null,
-  points integer not null default 0,
-  streak integer not null default 0,
-  avatar text not null default 'av-one',
-  created_at timestamptz not null default now()
+  author_name text,
+  initials text,
+  content text not null check (length(trim(content)) > 1),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-create table if not exists public.study_materials (
+create table if not exists public.comments (
   id uuid primary key default gen_random_uuid(),
-  subject_id text not null references public.subjects(id) on delete cascade,
-  title text not null,
-  material_type text not null default 'pdf',
-  file_url text,
-  is_available boolean not null default false,
+  post_id uuid not null references public.posts(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  author_name text,
+  content text not null check (length(trim(content)) > 0),
   created_at timestamptz not null default now()
 );
 
-alter table public.subjects enable row level security;
-alter table public.community_posts enable row level security;
-alter table public.community_members enable row level security;
-alter table public.daily_activity enable row level security;
-alter table public.leaderboard_points enable row level security;
-alter table public.study_materials enable row level security;
+create or replace function public.is_batch_enrolled(target_batch uuid)
+returns boolean language sql security definer stable set search_path = public
+as $$
+  select exists (select 1 from public.batch_enrollments where batch_id = target_batch and user_id = auth.uid() and status = 'active');
+$$;
 
-drop policy if exists "Anyone can view subjects" on public.subjects;
-create policy "Anyone can view subjects" on public.subjects for select using (true);
-drop policy if exists "Anyone can view community posts" on public.community_posts;
-create policy "Anyone can view community posts" on public.community_posts for select using (true);
-drop policy if exists "Anyone can view leaderboard" on public.leaderboard_points;
-create policy "Anyone can view leaderboard" on public.leaderboard_points for select using (true);
-drop policy if exists "Anyone can view study materials" on public.study_materials;
-create policy "Anyone can view study materials" on public.study_materials for select using (true);
-drop policy if exists "Learners view memberships" on public.community_members;
-create policy "Learners view memberships" on public.community_members for select using ((select auth.uid()) = user_id);
-drop policy if exists "Learners join rooms" on public.community_members;
-create policy "Learners join rooms" on public.community_members for insert with check ((select auth.uid()) = user_id);
-drop policy if exists "Learners leave rooms" on public.community_members;
-create policy "Learners leave rooms" on public.community_members for delete using ((select auth.uid()) = user_id);
-drop policy if exists "Learners view their activity" on public.daily_activity;
-create policy "Learners view their activity" on public.daily_activity for select using ((select auth.uid()) = user_id);
-drop policy if exists "Learners record activity" on public.daily_activity;
-create policy "Learners record activity" on public.daily_activity for insert with check ((select auth.uid()) = user_id);
-drop policy if exists "Learners update activity" on public.daily_activity;
-create policy "Learners update activity" on public.daily_activity for update using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create or replace function public.is_section_enrolled(target_section uuid)
+returns boolean language sql security definer stable set search_path = public
+as $$
+  select exists (select 1 from public.sections s join public.batch_enrollments e on e.batch_id = s.batch_id where s.id = target_section and e.user_id = auth.uid() and e.status = 'active');
+$$;
 
-insert into public.subjects (id, name, description, learner_count, accent, icon, position)
+create or replace function public.is_post_enrolled(target_post uuid)
+returns boolean language sql security definer stable set search_path = public
+as $$
+  select exists (select 1 from public.posts p where p.id = target_post and public.is_section_enrolled(p.section_id));
+$$;
+
+alter table public.batches enable row level security;
+alter table public.sections enable row level security;
+alter table public.batch_enrollments enable row level security;
+alter table public.posts enable row level security;
+alter table public.comments enable row level security;
+
+drop policy if exists "Enrolled users view batches" on public.batches;
+create policy "Enrolled users view batches" on public.batches for select using (public.is_batch_enrolled(id));
+drop policy if exists "Enrolled users view sections" on public.sections;
+create policy "Enrolled users view sections" on public.sections for select using (public.is_batch_enrolled(batch_id));
+drop policy if exists "Users view own enrollments" on public.batch_enrollments;
+create policy "Users view own enrollments" on public.batch_enrollments for select using ((select auth.uid()) = user_id);
+drop policy if exists "Enrolled users view posts" on public.posts;
+create policy "Enrolled users view posts" on public.posts for select using (public.is_section_enrolled(section_id));
+drop policy if exists "Enrolled users create posts" on public.posts;
+create policy "Enrolled users create posts" on public.posts for insert with check ((select auth.uid()) = user_id and public.is_section_enrolled(section_id));
+drop policy if exists "Authors update posts" on public.posts;
+create policy "Authors update posts" on public.posts for update using ((select auth.uid()) = user_id and public.is_section_enrolled(section_id)) with check ((select auth.uid()) = user_id and public.is_section_enrolled(section_id));
+drop policy if exists "Authors delete posts" on public.posts;
+create policy "Authors delete posts" on public.posts for delete using ((select auth.uid()) = user_id);
+drop policy if exists "Enrolled users view comments" on public.comments;
+create policy "Enrolled users view comments" on public.comments for select using (public.is_post_enrolled(post_id));
+drop policy if exists "Enrolled users create comments" on public.comments;
+create policy "Enrolled users create comments" on public.comments for insert with check ((select auth.uid()) = user_id and public.is_post_enrolled(post_id));
+drop policy if exists "Authors update comments" on public.comments;
+create policy "Authors update comments" on public.comments for update using ((select auth.uid()) = user_id and public.is_post_enrolled(post_id)) with check ((select auth.uid()) = user_id and public.is_post_enrolled(post_id));
+drop policy if exists "Authors delete comments" on public.comments;
+create policy "Authors delete comments" on public.comments for delete using ((select auth.uid()) = user_id);
+
+insert into public.batches (name, slug, description, position)
 values
-  ('botany', 'Botany', 'plants, diagrams, revision', '6.8k learners', 'green', '❧', 1),
-  ('physics', 'Physics', 'concepts, numericals, doubts', '8.2k learners', 'orange', '∿', 2),
-  ('chemistry', 'Chemistry', 'reactions, notes, practice', '7.4k learners', 'blue', '⌬', 3),
-  ('zoology', 'Zoology', 'human systems, NEET prep', '5.1k learners', 'purple', '◒', 4),
-  ('maths', 'Maths', 'shortcuts, problems, wins', '4.6k learners', 'ink', 'π', 5)
-on conflict (id) do update set description = excluded.description, learner_count = excluded.learner_count, accent = excluded.accent, icon = excluded.icon, position = excluded.position;
+  ('Yakeen NEET Hindi 2027', 'yakeen-neet-hindi-2027', 'A focused NEET Hindi learning community.', 1),
+  ('Yakeen NEET Hindi 2.0 2027', 'yakeen-neet-hindi-2-0-2027', 'The second Yakeen NEET Hindi learning room.', 2),
+  ('Yakeen NEET Hindi 3.0 2027', 'yakeen-neet-hindi-3-0-2027', 'The third Yakeen NEET Hindi learning room.', 3)
+on conflict (slug) do update set name = excluded.name, description = excluded.description, position = excluded.position;
 
-insert into public.community_posts (subject_id, author_name, initials, role, content, likes, comments)
-select 'physics', 'Aarav K.', 'AK', 'NEET 2027', 'Finally understood why the direction changes in circular motion. The diagram-first approach made it click — sharing it here in case someone else is stuck too.', 42, 8
-where not exists (select 1 from public.community_posts where author_name = 'Aarav K.');
-insert into public.community_posts (subject_id, author_name, initials, role, content, likes, comments)
-select 'botany', 'Priya S.', 'PS', 'Botany room guide', 'Quick reminder: revise plant hormones with one real-life example each. I made a tiny memory map for auxin, gibberellin, cytokinin, ABA and ethylene.', 67, 14
-where not exists (select 1 from public.community_posts where author_name = 'Priya S.');
-insert into public.community_posts (subject_id, author_name, initials, role, content, likes, comments)
-select 'chemistry', 'Naman M.', 'NM', 'JEE / NEET', 'Small win: 30/30 in today''s organic reaction sprint. Consistency is feeling better than motivation this week.', 31, 5
-where not exists (select 1 from public.community_posts where author_name = 'Naman M.');
+insert into public.sections (batch_id, type, name)
+select b.id, s.type, s.name from public.batches b cross join (values ('community'::text, 'Community'::text), ('doubt'::text, 'Doubt Section'::text)) s(type, name)
+on conflict (batch_id, type) do update set name = excluded.name;
 
-insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
-select 'Mahi R.', 'MR', 492, 21, 'av-two' where not exists (select 1 from public.leaderboard_points where display_name = 'Mahi R.');
-insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
-select 'Dev P.', 'DP', 411, 18, 'av-one' where not exists (select 1 from public.leaderboard_points where display_name = 'Dev P.');
-insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
-select 'You', 'RS', 268, 14, 'av-three' where not exists (select 1 from public.leaderboard_points where display_name = 'You');
-insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
-select 'Ishita S.', 'IS', 244, 12, 'av-four' where not exists (select 1 from public.leaderboard_points where display_name = 'Ishita S.');
-
-insert into public.study_materials (subject_id, title, material_type, is_available)
-select 'botany', 'Plant physiology quick notes', 'pdf', false where not exists (select 1 from public.study_materials where title = 'Plant physiology quick notes');
-insert into public.study_materials (subject_id, title, material_type, is_available)
-select 'physics', 'Motion formula sheet', 'pdf', false where not exists (select 1 from public.study_materials where title = 'Motion formula sheet');
-
-create index if not exists community_posts_subject_created_idx on public.community_posts(subject_id, created_at desc);
-create index if not exists community_members_subject_idx on public.community_members(subject_id);
-create index if not exists daily_activity_user_date_idx on public.daily_activity(user_id, activity_date desc);
-create index if not exists leaderboard_points_points_idx on public.leaderboard_points(points desc);
+create index if not exists sections_batch_idx on public.sections(batch_id);
+create index if not exists posts_section_created_idx on public.posts(section_id, created_at desc);
+create index if not exists comments_post_created_idx on public.comments(post_id, created_at asc);
+create index if not exists batch_enrollments_user_idx on public.batch_enrollments(user_id, status);

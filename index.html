@@ -1,49 +1,59 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#163c35" />
-    <meta name="description" content="GyaanSetu — your focused learning community for every subject." />
-    <meta property="og:title" content="GyaanSetu — Learn together" />
-    <meta property="og:description" content="Join subject rooms, protect your streak, and learn with your community." />
-    <title>GyaanSetu — Learn together</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <div class="app-shell">
-      <header class="topbar section-wrap">
-        <a class="brand" href="#top" aria-label="GyaanSetu home"><span class="brand-mark">GS</span><span class="brand-copy"><strong>gyaan<span>setu</span></strong><small>learn together</small></span></a>
-        <nav class="desktop-nav" aria-label="Primary navigation"><a class="active" href="#rooms">Rooms</a><a href="#community">Community</a><a href="#leaderboard">Leaderboard</a></nav>
-        <div class="top-actions"><label class="global-search"><span>⌕</span><input id="globalSearch" type="search" placeholder="Search" aria-label="Search" /></label><button class="streak-pill" id="checkInTop" aria-label="Check in streak">✦ 14</button><button class="avatar-button" id="accountButton" aria-label="Open account">RS</button></div>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#172329" />
+  <meta name="description" content="GyaanSetu batch-wise student community." />
+  <title>GyaanSetu Community</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#top"><span class="brand-mark">GS</span><span><strong>gyaan<span>setu</span></strong><small>community</small></span></a>
+      <div class="top-context"><span class="context-dot"></span><span>Learning together, one batch at a time</span></div>
+      <div class="top-actions"><button class="top-icon" id="searchButton" aria-label="Search">⌕</button><button class="top-icon" id="notificationButton" aria-label="Notifications">♧</button><button class="profile-chip" id="profileButton"><span class="profile-avatar">RS</span><span class="profile-name">Rambhakt</span><span>⌄</span></button></div>
+    </header>
 
-      <main id="top">
-        <section class="welcome section-wrap">
-          <div class="welcome-copy"><span class="eyebrow"><span class="eyebrow-dot"></span> COMMUNITY-FIRST LEARNING</span><h1>Learn together.<br /><em>Grow together.</em></h1><p>Find your room, ask better questions, and keep showing up. Your next breakthrough might be one conversation away.</p><div class="welcome-actions"><button class="button button-primary" id="joinCommunity">Join the community <span>↗</span></button><a class="button button-quiet" href="#rooms">Explore rooms <span>→</span></a></div></div>
-          <div class="welcome-art" aria-hidden="true"><div class="sun-shape"></div><div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="people-card"><div class="people-top"><span>LIVE IN YOUR ROOMS</span><b>now</b></div><div class="avatar-stack"><span class="mini-avatar av-one">AK</span><span class="mini-avatar av-two">PS</span><span class="mini-avatar av-three">NM</span><span class="mini-avatar av-four">+9</span></div><h3>12 learners are studying</h3><p>Physics room · 4 new discussions</p><div class="pulse-line"><span></span></div></div><div class="floating-badge badge-left"><span>✦</span><b>14 day streak</b><small>keep it alive</small></div><div class="floating-badge badge-right"><span>↗</span><b>+24 points</b><small>this week</small></div></div>
+    <div class="mobile-context"><button id="mobileBatchButton"><span>☰</span><span id="mobileBatchLabel">Yakeen NEET Hindi 2027</span><span>⌄</span></button></div>
+    <div class="app-layout" id="top">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-top"><div><span class="sidebar-kicker">LEARN TOGETHER</span><h2>Your batches</h2></div><button id="collapseAll" class="small-icon" aria-label="Collapse all batches">−</button></div>
+        <div class="access-note"><span>✦</span><p><strong>Private rooms</strong><br />Only enrolled learners can enter.</p></div>
+        <nav class="batch-tree" id="batchTree" aria-label="Batch navigation"></nav>
+        <div class="sidebar-bottom"><div class="mini-user"><span class="profile-avatar">RS</span><div><strong>Rambhakt</strong><small>Student account</small></div></div><button class="sign-out" id="signOutButton">Sign out</button></div>
+      </aside>
+
+      <main class="workspace">
+        <section class="workspace-head">
+          <div class="breadcrumbs"><span>Community</span><b>›</b><span id="activeBatchCrumb">Yakeen NEET Hindi 2027</span><b>›</b><strong id="activeSectionCrumb">Community</strong></div>
+          <div class="workspace-title-row"><div><span class="section-kicker" id="sectionKicker">STUDENT DISCUSSION CHANNEL</span><h1 id="workspaceTitle">Community</h1><p id="workspaceSubtitle">Share wins, ask for study tips, and help your batch move forward.</p></div><div class="workspace-actions"><span class="access-pill" id="accessPill"><span></span> Enrolled access</span><button class="button button-primary" id="newPostButton">＋ New post</button></div></div>
+          <div class="section-tabs"><button class="tab active" data-feed-tab="all">All posts <span id="postCount">0</span></button><button class="tab" data-feed-tab="mine">My posts</button><div class="tab-spacer"></div><button class="sort-button" id="sortButton">Latest <span>⌄</span></button></div>
         </section>
 
-        <section class="stat-strip section-wrap" aria-label="Your learning stats"><div class="stat-item"><span class="stat-icon orange">✦</span><div><strong>14 days</strong><small>Current streak</small></div></div><div class="stat-item"><span class="stat-icon green">◎</span><div><strong>268 pts</strong><small>Community points</small></div></div><div class="stat-item"><span class="stat-icon blue">#3</span><div><strong>Top 5%</strong><small>This week's rank</small></div></div><button class="check-in" id="checkInButton">Check in today <span>→</span></button></section>
-
-        <section class="section-wrap room-section" id="rooms"><div class="section-heading"><div><span class="section-kicker">YOUR STUDY ROOMS</span><h2>Where do you want to go today?</h2></div><button class="text-button" id="allRoomsButton">See all rooms <span>→</span></button></div><div class="room-grid" id="roomGrid"></div></section>
-
-        <div class="section-wrap content-layout">
-          <section class="community-column" id="community"><div class="section-heading"><div><span class="section-kicker">COMMUNITY PULSE</span><h2>What learners are saying</h2></div><button class="sort-button" id="sortButton">Latest <span>⌄</span></button></div><div class="compose-card"><div class="compose-avatar">RS</div><button id="composeButton">Share a doubt, win, or useful note…</button><span class="compose-plus">＋</span></div><div class="active-room-label" id="activeRoomLabel">All rooms <span>•</span> 12 discussions today</div><div class="feed" id="feed"></div></section>
-          <aside class="side-column">
-            <section class="side-card streak-card"><div class="side-card-heading"><span class="section-kicker">STREAK CLUB</span><span class="tiny-link">View details</span></div><div class="streak-number"><strong>14</strong><span>days</span><i>✦</i></div><p>Consistency beats intensity. Come back tomorrow and keep your circle warm.</p><div class="week-row"><span class="done">M</span><span class="done">T</span><span class="done">W</span><span class="done">T</span><span class="done">F</span><span class="today">S</span><span>S</span></div><button class="button button-dark full-width" id="sideCheckIn">Check in today <span>→</span></button></section>
-            <section class="side-card" id="leaderboard"><div class="side-card-heading"><div><span class="section-kicker">LEADERBOARD</span><h3>This week</h3></div><span class="trophy">♛</span></div><div class="leaderboard" id="leaderboardList"></div><button class="text-button full-width" id="leaderboardButton">Open full leaderboard <span>→</span></button></section>
-            <section class="side-card vault-card"><div class="vault-icon">▤</div><span class="section-kicker">STUDY VAULT</span><h3>Notes & PDFs,<br /><em>coming soon.</em></h3><p>Your saved chapter notes and community PDFs will live here.</p><button class="vault-button" id="vaultButton">Tell me when it’s ready <span>→</span></button></section>
+        <div class="content-grid">
+          <section class="feed-column">
+            <div class="enrollment-banner" id="enrollmentBanner"><span class="banner-icon">✓</span><div><strong>Preview mode</strong><p>Sign in with an enrolled account to access this batch and participate.</p></div><button id="bannerSignIn">Sign in</button></div>
+            <div class="compose-card"><span class="profile-avatar">RS</span><button id="composeButton">Share a doubt, a win, or a useful note…</button><span class="compose-plus">＋</span></div>
+            <div class="feed-label"><span id="feedLabel">Recent posts</span><span class="live-dot">● Live in this section</span></div>
+            <div class="post-feed" id="postFeed"></div>
+          </section>
+          <aside class="right-rail">
+            <section class="rail-card batch-card"><div class="rail-heading"><span class="section-kicker">CURRENT BATCH</span><span class="batch-lock">⌁</span></div><h3 id="railBatchName">Yakeen NEET Hindi 2027</h3><p id="railBatchDescription">Your focused room for notes, support, and daily momentum.</p><div class="learner-line"><div class="avatar-stack"><span class="tiny-avatar av-green">AK</span><span class="tiny-avatar av-orange">PS</span><span class="tiny-avatar av-purple">NM</span><span class="tiny-avatar av-ink">+9</span></div><span>12 learners active</span></div></section>
+            <section class="rail-card quick-card"><div class="rail-heading"><span class="section-kicker">BATCH MAP</span><span class="map-mark">⌘</span></div><div class="map-row active" id="communityMapRow"><span class="map-icon">♧</span><div><strong>Community</strong><small>Wins, tips & conversations</small></div><b>›</b></div><div class="map-row" id="doubtMapRow"><span class="map-icon doubt">?</span><div><strong>Doubt Section</strong><small>Ask. Explain. Understand.</small></div><b>›</b></div></section>
+            <section class="rail-card streak-mini"><div class="rail-heading"><span class="section-kicker">YOUR STREAK</span><span class="streak-fire">✦</span></div><div class="mini-streak"><strong>14</strong><span>days</span><em>+10 pts today</em></div><div class="progress-track"><span></span></div><p>Check in every day to climb your batch leaderboard.</p></section>
           </aside>
         </div>
       </main>
-
-      <footer class="footer section-wrap"><div class="brand"><span class="brand-mark">GS</span><span class="brand-copy"><strong>gyaan<span>setu</span></strong><small>learn together</small></span></div><p>A calm corner of the internet for curious minds.</p><span>© 2026 GyaanSetu</span></footer>
-      <nav class="mobile-nav" aria-label="Mobile navigation"><a class="active" href="#rooms">⌂<small>Rooms</small></a><a href="#community">◌<small>Community</small></a><a href="#leaderboard">♛<small>Rank</small></a><button id="mobileAccount">RS<small>Profile</small></button></nav>
     </div>
+    <nav class="mobile-nav"><a class="active" href="#top">⌂<small>Community</small></a><button id="mobileDoubtButton">?<small>Doubts</small></button><a href="#sidebar">☷<small>Batches</small></a><button id="mobileProfileButton">RS<small>Profile</small></button></nav>
+  </div>
 
-    <dialog id="authDialog" class="auth-dialog"><button class="dialog-close" id="closeDialog" aria-label="Close">×</button><div class="auth-mark">GS</div><span class="section-kicker">WELCOME TO THE ROOM</span><h2 id="authTitle">Join your learning circle</h2><p id="authSubtitle">Sign in to save your streak and join discussions.</p><form id="authForm"><label>Email<input id="emailInput" type="email" required placeholder="you@example.com" /></label><label>Password<input id="passwordInput" type="password" required minlength="6" placeholder="••••••••" /></label><button class="button button-primary full-width" type="submit" id="authSubmit">Sign in <span>→</span></button></form><button class="switch-auth" id="switchAuth">New here? Create an account</button><p class="auth-status" id="authStatus" role="status"></p></dialog>
-    <div class="toast" id="toast" role="status"></div>
-    <script type="module" src="app.js"></script>
-  </body>
+  <dialog class="auth-dialog" id="authDialog"><button class="dialog-close" id="closeAuth">×</button><div class="auth-mark">GS</div><span class="section-kicker">ENROLLED LEARNERS ONLY</span><h2>Sign in to this batch</h2><p>Your batch rooms are private. Use your enrolled account to view posts, comments, and doubts.</p><form id="authForm"><label>Email<input id="emailInput" type="email" required placeholder="you@example.com" /></label><label>Password<input id="passwordInput" type="password" required minlength="6" placeholder="••••••••" /></label><button class="button button-primary full-width" type="submit">Sign in <span>→</span></button></form><p class="auth-status" id="authStatus"></p></dialog>
+  <dialog class="post-dialog" id="postDialog"><button class="dialog-close" id="closePost">×</button><span class="section-kicker" id="postDialogKicker">COMMUNITY POST</span><h2 id="postDialogTitle">Share with your batch</h2><p id="postDialogSubtitle">Your post will stay inside the selected batch and section.</p><form id="postForm"><textarea id="postContent" required minlength="2" rows="5" placeholder="Write something useful for your batch…"></textarea><div class="dialog-actions"><button type="button" class="button button-quiet" id="cancelPost">Cancel</button><button type="submit" class="button button-primary">Publish post <span>→</span></button></div><p class="auth-status" id="postStatus"></p></form></dialog>
+  <dialog class="comments-dialog" id="commentsDialog"><button class="dialog-close" id="closeComments">×</button><span class="section-kicker">DISCUSSION REPLIES</span><h2>Comments stay in this section</h2><div id="commentsList" class="comments-list"></div><form id="commentForm" class="comment-form"><input id="commentContent" required placeholder="Add a helpful reply…" /><button type="submit">↗</button></form></dialog>
+  <div class="toast" id="toast"></div>
+  <script type="module" src="app.js"></script>
+</body>
 </html>

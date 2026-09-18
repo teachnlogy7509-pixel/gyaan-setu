@@ -1,6 +1,0 @@
-{
-  "name": "NEET Hindi Prep",
-  "description": "NEET Hindi Prep by Rathod - संपूर्ण NEET हिंदी माध्यम तैयारी (Physics, Chemistry, Botany, Zoology मॉक टेस्ट, लाइव लीडरबोर्ड, AI डाउट सॉल्वर व NCERT नोट्स)",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

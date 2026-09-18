@@ -1,4 +1,4 @@
-name: Wire RATHOD live sync client
+name: Wire RATHOD live sync and auth clients
 
 on:
   push:
@@ -13,17 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inject live sync script
+      - name: Inject live sync and auth scripts
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
           path = Path('index.html')
           text = path.read_text(encoding='utf-8')
-          tag = '<script src="rathod-live-sync.js" defer></script>'
-          if 'rathod-live-sync.js' not in text:
-              text = text.replace('</body>', tag + '</body>', 1)
-              path.write_text(text, encoding='utf-8')
+          for tag in [
+              '<script src="rathod-live-sync.js" defer></script>',
+              '<script src="gyaan-auth-fix.js" defer></script>'
+          ]:
+              if tag not in text:
+                  text = text.replace('</body>', tag + '</body>', 1)
+          path.write_text(text, encoding='utf-8')
           PY
       - name: Commit wiring change
         shell: bash
@@ -31,4 +34,4 @@ jobs:
           git config user.name 'gyaan-setu-bot'
           git config user.email 'gyaan-setu-bot@users.noreply.github.com'
           git add index.html
-          if git diff --cached --quiet; then echo 'Live sync already wired.'; else git commit -m 'Wire RATHOD live sync client'; git push; fi
+          if git diff --cached --quiet; then echo 'Clients already wired.'; else git commit -m 'Wire RATHOD live sync and auth clients'; git push; fi

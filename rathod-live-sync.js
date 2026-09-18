@@ -1,73 +1,25 @@
 (() => {
   const URL = "https://oicluhfdvaroqvhwfwyp.supabase.co";
   const KEY = "sb_publishable_iXAoOGZ0YppBP0Y1kJf02Q_E323DzKA";
-  let db;
-  let session;
-  let bound = false;
+  let db, session, bound = false, mainBound = false;
   const $ = (s) => document.querySelector(s);
-  const toast = (text) => { const node = $("#toast"); if (node) { node.textContent = text; node.classList.add("show"); setTimeout(() => node.classList.remove("show"), 2600); } };
+  const toast = (t) => { const n = $("#toast"); if (n) { n.textContent = t; n.classList.add("show"); setTimeout(() => n.classList.remove("show"), 2600); } };
   async function bridge(action, extra = {}) {
     if (!db) return { error: { message: "Sync client unavailable" } };
-    const current = await db.auth.getSession(); session = current.data.session;
+    session = (await db.auth.getSession()).data.session;
     if (!session) return { error: { message: "Login required" } };
-    const response = await fetch(`${URL}/functions/v1/gyaan-rathod-sync`, { method: "POST", headers: { apikey: KEY, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
-    const result = await response.json().catch(() => ({}));
-    return response.ok ? { data: result } : { error: { message: result.error || "RATHOD sync failed" } };
+    const r = await fetch(`${URL}/functions/v1/gyaan-rathod-sync`, { method: "POST", headers: { apikey: KEY, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
+    const data = await r.json().catch(() => ({})); return r.ok ? { data } : { error: { message: data.error || "RATHOD sync failed" } };
   }
-  function showProgress(result) {
-    if (result?.error) return;
-    const data = result.data || result;
-    if ($("#rhccXp")) $("#rhccXp").textContent = `${Number(data.xp || 0)} XP`;
-    if ($("#rhccScore")) $("#rhccScore").textContent = `${Number(data.score ?? data.season_xp ?? 0)}`;
-    if ($("#rhSeasonXp")) $("#rhSeasonXp").textContent = `${Number(data.season_xp ?? data.score ?? 0)}`;
-    if ($("#rhSharedStatus")) $("#rhSharedStatus").textContent = `RATHOD HUB live sync connected · Level ${data.league_level || 1}`;
-  }
-  async function syncProgress() { const result = await bridge("sync_progress"); if (result.data) showProgress(result); }
-  async function redeemCoupon(event) {
-    event.preventDefault(); event.stopImmediatePropagation();
-    const code = $("#rhccVipCode")?.value.trim().toUpperCase() || $("#rhCouponInput")?.value.trim().toUpperCase();
-    if (!code) return toast("VIP coupon code डालें.");
-    const result = await bridge("redeem_coupon", { code });
-    if (result.error) return toast(result.error.message);
-    toast(result.data?.success ? "RATHOD VIP access unlocked ✓" : (result.data?.error || "Coupon invalid"));
-    if (result.data?.success) { if ($("#rhccVipStatus")) $("#rhccVipStatus").textContent = `RATHOD VIP active until ${new Date(result.data.expires_at).toLocaleDateString()}.`; if ($("#rhccVipCode")) $("#rhccVipCode").value = ""; }
-  }
-  async function uploadAndPost(event) {
-    event.preventDefault(); event.stopImmediatePropagation();
-    if (!session) return toast("Pehle GyaanSetu login karein.");
-    const text = $("#rhccPostText")?.value.trim(); const file = $("#rhccPostFile")?.files?.[0];
-    if (!text && !file) return toast("Post text या photo चुनें.");
-    const enrollment = await db.from("batch_enrollments").select("batch_id").eq("user_id", session.user.id).eq("status", "active").order("enrolled_at", { ascending: true }).limit(1).maybeSingle();
-    if (!enrollment.data) return toast("Enrolled batch के बाद post करें.");
-    const section = await db.from("sections").select("id").eq("batch_id", enrollment.data.batch_id).eq("type", "community").maybeSingle();
-    if (!section.data) return toast("Community section नहीं मिला.");
-    let media_url = null; let media_type = null;
-    if (file) { if (file.size > 8 * 1024 * 1024) return toast("Photo maximum 8 MB रखें."); const path = `${session.user.id}/community/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, "-")}`; const upload = await db.storage.from("gyaan-media").upload(path, file, { upsert: false, contentType: file.type }); if (upload.error) return toast(upload.error.message); media_url = db.storage.from("gyaan-media").getPublicUrl(path).data.publicUrl; media_type = file.type; }
-    const profile = await db.from("profiles").select("name,display_name").eq("id", session.user.id).maybeSingle();
-    const post = await db.from("posts").insert({ section_id: section.data.id, user_id: session.user.id, author_name: profile.data?.name || profile.data?.display_name || session.user.email?.split("@")[0] || "Learner", initials: "GS", content: text || "📷 Shared a study photo", media_url, media_type }).select("id").single();
-    if (post.error) return toast(post.error.message);
-    const mirrored = await bridge("community_post", { content: text || "📷 Shared a study photo", media_url, media_type, gyaan_post_id: post.data.id });
-    $("#rhccPostText").value = ""; $("#rhccPostFile").value = "";
-    toast(mirrored.error ? "GyaanSetu post saved; RATHOD mirror unavailable." : "Post shared + RATHOD HUB synced ✓");
-    window.rathodCompat?.loadCommunity?.();
-  }
-  function bindCommunityMirror() {
-    if (bound) return true;
-    const postButton = $("#rhccSubmitPost"); const vipButton = $("#rhccVipButton");
-    if (!postButton || !vipButton) return false;
-    postButton.addEventListener("click", uploadAndPost, true);
-    vipButton.addEventListener("click", redeemCoupon, true);
-    const feed = $("#rhccFeed");
-    feed?.addEventListener("click", (event) => { const button = event.target.closest("[data-rh-react]"); if (button) bridge("community_reaction", { gyaan_post_id: button.dataset.rhReact, reaction_type: button.dataset.rhType }); }, true);
-    bound = true; return true;
-  }
-  async function init() {
-    const mod = await import("https://esm.sh/@supabase/supabase-js@2"); db = mod.createClient(URL, KEY);
-    const current = await db.auth.getSession(); session = current.data.session;
-    db.auth.onAuthStateChange(async (_event, newSession) => { session = newSession; if (session) await syncProgress(); });
-    const timer = setInterval(async () => { bindCommunityMirror(); if (session) await syncProgress(); }, 30000);
-    void timer;
-    setTimeout(bindCommunityMirror, 700); setTimeout(bindCommunityMirror, 1800); await syncProgress();
-  }
+  function progressView(result) { const d = result?.data || {}; if ($("#rhccXp")) $("#rhccXp").textContent = `${Number(d.xp || 0)} XP`; if ($("#rhccScore")) $("#rhccScore").textContent = `${Number(d.score ?? d.season_xp ?? 0)}`; if ($("#rhSeasonXp")) $("#rhSeasonXp").textContent = `${Number(d.season_xp ?? d.score ?? 0)}`; if ($("#rhSharedStatus")) $("#rhSharedStatus").textContent = `RATHOD HUB live sync connected · Level ${d.league_level || 1}`; }
+  async function syncProgress() { const r = await bridge("sync_progress"); if (r.data) progressView(r); }
+  async function leaderboard(e) { e?.preventDefault(); e?.stopImmediatePropagation(); const r = await bridge("leaderboard"); const box = $("#rhSharedBoard"); if (r.error) return toast(r.error.message); if (!box) return; box.hidden = false; box.innerHTML = `<div class="muted" style="margin:10px 0 4px">RATHOD HUB live leaderboard</div>` + ((r.data?.rows || []).map((x) => `<div class="rhSharedRow"><span><b>#${x.rank}</b> ${String(x.display_name || "Learner").replace(/[&<>\"']/g, "") }<small>Level ${x.league_level} · Season XP ${x.season_xp}</small></span><b>${x.xp} XP</b></div>`).join("") || `<div class="empty">No RATHOD scores yet.</div>`); }
+  async function redeem(e) { e.preventDefault(); e.stopImmediatePropagation(); const code = $("#rhccVipCode")?.value.trim().toUpperCase() || $("#rhCouponInput")?.value.trim().toUpperCase(); if (!code) return toast("VIP coupon code डालें."); const r = await bridge("redeem_coupon", { code }); if (r.error) return toast(r.error.message); toast(r.data?.success ? "RATHOD VIP access unlocked ✓" : (r.data?.error || "Coupon invalid")); if (r.data?.success && $("#rhccVipStatus")) $("#rhccVipStatus").textContent = `RATHOD VIP active until ${new Date(r.data.expires_at).toLocaleDateString()}.`; }
+  async function activeSection() { const e = await db.from("batch_enrollments").select("batch_id").eq("user_id", session.user.id).eq("status", "active").order("enrolled_at", { ascending: true }).limit(1).maybeSingle(); if (!e.data) return null; const type = $("#dt")?.classList.contains("active") ? "doubt" : "community"; const s = await db.from("sections").select("id").eq("batch_id", e.data.batch_id).eq("type", type).maybeSingle(); return s.data ? { ...s.data, type } : null; }
+  async function savePost(e) { e.preventDefault(); e.stopImmediatePropagation(); if (!session) return toast("Pehle login karein."); const s = await activeSection(); const text = $("#postText")?.value.trim(); if (!s || !text) return toast("Section या post text missing."); const p = await db.from("profiles").select("name,display_name").eq("id", session.user.id).maybeSingle(); const r = await db.from("posts").insert({ section_id: s.id, user_id: session.user.id, author_name: p.data?.name || p.data?.display_name || session.user.email?.split("@")[0] || "Learner", initials: "GS", content: text }).select("id").single(); if (r.error) return toast(r.error.message); const mirror = await bridge("community_post", { content: text, section_type: s.type, gyaan_post_id: r.data.id }); $("#postText").value = ""; toast(mirror.error ? "Post saved; RATHOD mirror unavailable." : "Post + RATHOD live sync ✓"); $("[data-view=community]")?.click(); }
+  async function uploadPost(e) { e.preventDefault(); e.stopImmediatePropagation(); if (!session) return toast("Pehle GyaanSetu login karein."); const s = await db.from("sections").select("id").eq("batch_id", (await db.from("batch_enrollments").select("batch_id").eq("user_id", session.user.id).eq("status", "active").limit(1).maybeSingle()).data?.batch_id).eq("type", "community").maybeSingle(); const text = $("#rhccPostText")?.value.trim(); const file = $("#rhccPostFile")?.files?.[0]; if (!s.data || (!text && !file)) return toast("Post text या photo चुनें."); let media_url = null, media_type = null; if (file) { if (file.size > 8 * 1024 * 1024) return toast("Photo maximum 8 MB रखें."); const path = `${session.user.id}/community/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, "-")}`; const u = await db.storage.from("gyaan-media").upload(path, file, { upsert: false, contentType: file.type }); if (u.error) return toast(u.error.message); media_url = db.storage.from("gyaan-media").getPublicUrl(path).data.publicUrl; media_type = file.type; } const p = await db.from("profiles").select("name,display_name").eq("id", session.user.id).maybeSingle(); const r = await db.from("posts").insert({ section_id: s.data.id, user_id: session.user.id, author_name: p.data?.name || p.data?.display_name || "Learner", initials: "GS", content: text || "📷 Shared a study photo", media_url, media_type }).select("id").single(); if (r.error) return toast(r.error.message); const mirror = await bridge("community_post", { content: text || "📷 Shared a study photo", media_url, media_type, section_type: "community", gyaan_post_id: r.data.id }); $("#rhccPostText").value = ""; $("#rhccPostFile").value = ""; toast(mirror.error ? "GyaanSetu post saved; RATHOD mirror unavailable." : "Photo post + RATHOD live sync ✓"); window.rathodCompat?.loadCommunity?.(); }
+  async function comment(e, button) { e.preventDefault(); e.stopImmediatePropagation(); const text = window.prompt("Comment / reply लिखें:"); if (!text?.trim()) return; const r = await db.from("comments").insert({ post_id: button.dataset.rhComment, user_id: session.user.id, author_name: session.user.email?.split("@")[0] || "Learner", content: text.trim() }); if (r.error) return toast(r.error.message); const m = await bridge("community_comment", { gyaan_post_id: button.dataset.rhComment, content: text.trim() }); toast(m.error ? "Comment saved; RATHOD mirror unavailable." : "Comment + RATHOD sync ✓"); }
+  function bind() { if (!bound) { const v = $("#rhccVipButton"), p = $("#rhccSubmitPost"), b = $("#rhLoadBoard"); if (v) v.addEventListener("click", redeem, true); if (p) p.addEventListener("click", uploadPost, true); if (b) b.addEventListener("click", leaderboard, true); const f = $("#rhccFeed"); f?.addEventListener("click", (e) => { const r = e.target.closest("[data-rh-react]"); const c = e.target.closest("[data-rh-comment]"); if (r) bridge("community_reaction", { gyaan_post_id: r.dataset.rhReact, reaction_type: r.dataset.rhType }); if (c) comment(e, c); }, true); bound = !!(v && p); } if (!mainBound) { const p = $("#post"); if (p) { p.addEventListener("click", savePost, true); mainBound = true; } } }
+  async function init() { const m = await import("https://esm.sh/@supabase/supabase-js@2"); db = m.createClient(URL, KEY); session = (await db.auth.getSession()).data.session; db.auth.onAuthStateChange(async (_e, s) => { session = s; if (session) await syncProgress(); }); setInterval(() => { bind(); if (session) syncProgress(); }, 30000); setTimeout(bind, 700); setTimeout(bind, 1800); await syncProgress(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(init, 900), { once: true }); else setTimeout(init, 900);
 })();

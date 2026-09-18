@@ -1,89 +1,127 @@
--- GyaanSetu MVP schema
--- Public course catalog + private student progress.
+-- GyaanSetu community-first MVP additions
+-- Keeps the existing course tables and adds rooms, discussions, streaks, leaderboard, and future PDF metadata.
 
-create extension if not exists pgcrypto;
-
-create table if not exists public.courses (
+create table if not exists public.subjects (
   id text primary key,
-  title text not null,
-  subtitle text not null,
-  category text not null,
-  level text not null default 'Beginner',
-  duration text not null default '0 lessons',
-  price text not null default 'Free',
-  accent text not null default 'green',
-  glyph text not null default '✦',
-  featured boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.lessons (
-  id uuid primary key default gen_random_uuid(),
-  course_id text not null references public.courses(id) on delete cascade,
-  title text not null,
+  name text not null,
   description text,
-  duration_minutes integer not null default 10,
+  learner_count text not null default 'new room',
+  accent text not null default 'green',
+  icon text not null default '✦',
   position integer not null default 1,
-  is_free boolean not null default false,
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.tests (
+create table if not exists public.community_posts (
   id uuid primary key default gen_random_uuid(),
-  course_id text references public.courses(id) on delete cascade,
-  title text not null,
-  total_questions integer not null default 10,
-  duration_minutes integer not null default 10,
+  subject_id text not null references public.subjects(id) on delete cascade,
+  author_name text not null,
+  initials text not null,
+  role text not null default 'Learner',
+  content text not null,
+  likes integer not null default 0,
+  comments integer not null default 0,
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.enrollments (
-  id uuid primary key default gen_random_uuid(),
+create table if not exists public.community_members (
   user_id uuid not null references auth.users(id) on delete cascade,
-  course_id text not null references public.courses(id) on delete cascade,
-  progress integer not null default 0 check (progress between 0 and 100),
-  last_lesson_id uuid references public.lessons(id) on delete set null,
+  subject_id text not null references public.subjects(id) on delete cascade,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique(user_id, course_id)
+  primary key (user_id, subject_id)
 );
 
-alter table public.courses enable row level security;
-alter table public.lessons enable row level security;
-alter table public.tests enable row level security;
-alter table public.enrollments enable row level security;
+create table if not exists public.daily_activity (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  activity_date date not null,
+  points integer not null default 10,
+  created_at timestamptz not null default now(),
+  primary key (user_id, activity_date)
+);
 
-drop policy if exists "Anyone can view courses" on public.courses;
-create policy "Anyone can view courses" on public.courses for select using (true);
-drop policy if exists "Anyone can view lessons" on public.lessons;
-create policy "Anyone can view lessons" on public.lessons for select using (true);
-drop policy if exists "Anyone can view tests" on public.tests;
-create policy "Anyone can view tests" on public.tests for select using (true);
-drop policy if exists "Students view their enrollments" on public.enrollments;
-create policy "Students view their enrollments" on public.enrollments for select using (auth.uid() = user_id);
-drop policy if exists "Students create their enrollments" on public.enrollments;
-create policy "Students create their enrollments" on public.enrollments for insert with check (auth.uid() = user_id);
-drop policy if exists "Students update their enrollments" on public.enrollments;
-create policy "Students update their enrollments" on public.enrollments for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create table if not exists public.leaderboard_points (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  display_name text not null,
+  initials text not null,
+  points integer not null default 0,
+  streak integer not null default 0,
+  avatar text not null default 'av-one',
+  created_at timestamptz not null default now()
+);
 
-insert into public.courses (id, title, subtitle, category, level, duration, price, accent, glyph, featured)
+create table if not exists public.study_materials (
+  id uuid primary key default gen_random_uuid(),
+  subject_id text not null references public.subjects(id) on delete cascade,
+  title text not null,
+  material_type text not null default 'pdf',
+  file_url text,
+  is_available boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.subjects enable row level security;
+alter table public.community_posts enable row level security;
+alter table public.community_members enable row level security;
+alter table public.daily_activity enable row level security;
+alter table public.leaderboard_points enable row level security;
+alter table public.study_materials enable row level security;
+
+drop policy if exists "Anyone can view subjects" on public.subjects;
+create policy "Anyone can view subjects" on public.subjects for select using (true);
+drop policy if exists "Anyone can view community posts" on public.community_posts;
+create policy "Anyone can view community posts" on public.community_posts for select using (true);
+drop policy if exists "Anyone can view leaderboard" on public.leaderboard_points;
+create policy "Anyone can view leaderboard" on public.leaderboard_points for select using (true);
+drop policy if exists "Anyone can view study materials" on public.study_materials;
+create policy "Anyone can view study materials" on public.study_materials for select using (true);
+drop policy if exists "Learners view memberships" on public.community_members;
+create policy "Learners view memberships" on public.community_members for select using ((select auth.uid()) = user_id);
+drop policy if exists "Learners join rooms" on public.community_members;
+create policy "Learners join rooms" on public.community_members for insert with check ((select auth.uid()) = user_id);
+drop policy if exists "Learners leave rooms" on public.community_members;
+create policy "Learners leave rooms" on public.community_members for delete using ((select auth.uid()) = user_id);
+drop policy if exists "Learners view their activity" on public.daily_activity;
+create policy "Learners view their activity" on public.daily_activity for select using ((select auth.uid()) = user_id);
+drop policy if exists "Learners record activity" on public.daily_activity;
+create policy "Learners record activity" on public.daily_activity for insert with check ((select auth.uid()) = user_id);
+drop policy if exists "Learners update activity" on public.daily_activity;
+create policy "Learners update activity" on public.daily_activity for update using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+insert into public.subjects (id, name, description, learner_count, accent, icon, position)
 values
-  ('physics-foundations', 'Physics fundamentals', 'Vectors, kinematics, and the language of motion.', 'JEE / NEET', 'Beginner', '24 lessons', 'Free', 'green', '∿', true),
-  ('organic-chemistry', 'Organic chemistry, simply', 'Build intuition before you memorise reactions.', 'JEE / NEET', 'Intermediate', '31 lessons', '₹499', 'orange', '⌬', true),
-  ('maths-class-10', 'Maths that makes sense', 'A calm, visual route through Class 10 maths.', 'School', 'Class 10', '42 lessons', '₹299', 'blue', 'π', false),
-  ('public-speaking', 'Speak with confidence', 'Turn clear thoughts into words people remember.', 'Skills', 'All levels', '12 lessons', '₹399', 'purple', '✦', false),
-  ('upsc-essentials', 'UPSC essentials', 'Current affairs, structure, and an honest study plan.', 'UPSC', 'Foundation', '28 lessons', '₹599', 'green', '◒', false),
-  ('biology-revision', 'Biology revision lab', 'High-yield concepts for faster, smarter recall.', 'JEE / NEET', 'Revision', '18 lessons', 'Free', 'orange', '⌁', false)
-on conflict (id) do update set subtitle = excluded.subtitle, duration = excluded.duration, price = excluded.price, featured = excluded.featured;
+  ('botany', 'Botany', 'plants, diagrams, revision', '6.8k learners', 'green', '❧', 1),
+  ('physics', 'Physics', 'concepts, numericals, doubts', '8.2k learners', 'orange', '∿', 2),
+  ('chemistry', 'Chemistry', 'reactions, notes, practice', '7.4k learners', 'blue', '⌬', 3),
+  ('zoology', 'Zoology', 'human systems, NEET prep', '5.1k learners', 'purple', '◒', 4),
+  ('maths', 'Maths', 'shortcuts, problems, wins', '4.6k learners', 'ink', 'π', 5)
+on conflict (id) do update set description = excluded.description, learner_count = excluded.learner_count, accent = excluded.accent, icon = excluded.icon, position = excluded.position;
 
-insert into public.lessons (course_id, title, description, duration_minutes, position, is_free)
-values
-  ('physics-foundations', 'Vectors, made visual', 'A visual introduction to direction and magnitude.', 12, 1, true),
-  ('physics-foundations', 'Motion in a plane', 'Read motion like a story, not a formula sheet.', 18, 2, true),
-  ('physics-foundations', 'Relative motion', 'Change the frame, change the insight.', 21, 3, false),
-  ('organic-chemistry', 'The carbon toolkit', 'The few ideas that unlock organic chemistry.', 15, 1, true),
-  ('maths-class-10', 'Quadratic equations', 'See the pattern before solving the problem.', 16, 1, true)
-on conflict do nothing;
+insert into public.community_posts (subject_id, author_name, initials, role, content, likes, comments)
+select 'physics', 'Aarav K.', 'AK', 'NEET 2027', 'Finally understood why the direction changes in circular motion. The diagram-first approach made it click — sharing it here in case someone else is stuck too.', 42, 8
+where not exists (select 1 from public.community_posts where author_name = 'Aarav K.');
+insert into public.community_posts (subject_id, author_name, initials, role, content, likes, comments)
+select 'botany', 'Priya S.', 'PS', 'Botany room guide', 'Quick reminder: revise plant hormones with one real-life example each. I made a tiny memory map for auxin, gibberellin, cytokinin, ABA and ethylene.', 67, 14
+where not exists (select 1 from public.community_posts where author_name = 'Priya S.');
+insert into public.community_posts (subject_id, author_name, initials, role, content, likes, comments)
+select 'chemistry', 'Naman M.', 'NM', 'JEE / NEET', 'Small win: 30/30 in today''s organic reaction sprint. Consistency is feeling better than motivation this week.', 31, 5
+where not exists (select 1 from public.community_posts where author_name = 'Naman M.');
 
-create index if not exists enrollments_user_id_idx on public.enrollments(user_id);
-create index if not exists lessons_course_position_idx on public.lessons(course_id, position);
+insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
+select 'Mahi R.', 'MR', 492, 21, 'av-two' where not exists (select 1 from public.leaderboard_points where display_name = 'Mahi R.');
+insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
+select 'Dev P.', 'DP', 411, 18, 'av-one' where not exists (select 1 from public.leaderboard_points where display_name = 'Dev P.');
+insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
+select 'You', 'RS', 268, 14, 'av-three' where not exists (select 1 from public.leaderboard_points where display_name = 'You');
+insert into public.leaderboard_points (display_name, initials, points, streak, avatar)
+select 'Ishita S.', 'IS', 244, 12, 'av-four' where not exists (select 1 from public.leaderboard_points where display_name = 'Ishita S.');
+
+insert into public.study_materials (subject_id, title, material_type, is_available)
+select 'botany', 'Plant physiology quick notes', 'pdf', false where not exists (select 1 from public.study_materials where title = 'Plant physiology quick notes');
+insert into public.study_materials (subject_id, title, material_type, is_available)
+select 'physics', 'Motion formula sheet', 'pdf', false where not exists (select 1 from public.study_materials where title = 'Motion formula sheet');
+
+create index if not exists community_posts_subject_created_idx on public.community_posts(subject_id, created_at desc);
+create index if not exists community_members_subject_idx on public.community_members(subject_id);
+create index if not exists daily_activity_user_date_idx on public.daily_activity(user_id, activity_date desc);
+create index if not exists leaderboard_points_points_idx on public.leaderboard_points(points desc);

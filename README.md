@@ -1,42 +1,31 @@
 # GyaanSetu
 
-A focused learning platform for courses, practice, and visible progress. The experience takes inspiration from modern Indian edtech products while using an original brand, layout, copy, and visual language.
+A community-first learning app for subject rooms, streaks, leaderboards, doubts, and shared study material. The visual language is original and inspired by the warmth and structure of modern Indian learning communities.
 
-## What is included
+## Current MVP
 
-- Responsive learner home with daily streak, weekly learning stats, resume-learning card, course discovery, and practice CTA.
-- Search and category filters for JEE / NEET, School, Skills, and UPSC.
-- Supabase-backed course catalogue and enrollment flow.
-- Email/password authentication through Supabase Auth.
-- Row Level Security for student enrollments.
-- Offline-friendly preview fallback when the Supabase client cannot load.
+- Subject rooms: Botany, Physics, Chemistry, Zoology, and Maths.
+- Community pulse with learner posts, likes, comments, and sharing affordances.
+- Streak check-in flow with Supabase-backed daily activity.
+- Weekly leaderboard with points and streaks.
+- Supabase Auth for learner accounts.
+- PDF/study vault placeholder ready for the next phase.
+- Responsive desktop/mobile navigation.
 
 ## Stack
 
-- HTML, CSS, and modern browser JavaScript for a fast starter MVP.
-- Supabase for Auth, Postgres, and RLS.
-- GitHub for source control.
-
-## Run locally
-
-Serve the folder with any static server, for example:
-
-```bash
-python3 -m http.server 4173
-```
-
-Then open `http://localhost:4173`.
+- HTML, CSS, and modern browser JavaScript.
+- Supabase Auth and Postgres with Row Level Security.
+- GitHub source control.
 
 ## Supabase setup
 
-1. Open the connected GyaanSetu Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor or through the Supabase migration tool.
-3. Keep email confirmation settings aligned with the environment you want to use.
-4. The frontend uses the project's publishable key. It is safe to expose a publishable key in a browser app when RLS policies are configured correctly.
+The existing course MVP tables remain in the connected project. Run `supabase/schema.sql` to add the community-first tables and seed the subject rooms, sample posts, leaderboard, and future PDF metadata.
 
 ## Next build slices
 
-- Add lesson player + video/storage URLs.
-- Add test questions, submissions, and score history.
-- Add teacher/admin dashboard.
-- Add payments only after selecting a payment provider and defining the product catalogue.
+- Real post creation, replies, moderation, and notifications.
+- Upload PDFs to Supabase Storage and show them inside each subject room.
+- Full leaderboard history and streak recovery rules.
+- Admin/teacher room controls.
+- Payments and live classes later, after the community foundation is stable.

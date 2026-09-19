@@ -32,23 +32,48 @@
         const data=await res.json().catch(()=>({}));
         if(!res.ok) throw new Error(data.error||'Account creation failed');
       }
-      const login=await c.auth.signInWithPassword({email,password});
-      if(login.error||!login.data?.session) throw new Error(login.error?.message||'Login session create नहीं हुआ.');
-      status('Login successful ✓',true);
-      window.dispatchEvent(new CustomEvent('gyaan-auth-success',{detail:{session:login.data.session,user:login.data.user}}));
-      $('gyaanSetuAuth').classList.remove('show');
-      setTimeout(()=>location.reload(),250);
-    }catch(e){
-      const msg=e&&e.message?e.message:'Login failed';
-      // First login from a migrated RATHOD member may not exist in GyaanSetu Auth yet.
-      // Offer the same GyaanSetu email-OTP flow so the local account is created.
-      if(mode==='login' && /invalid login credentials|user not found|email not found|invalid/i.test(msg)){
-        try{
-          const c=await getDb();
-          const otp=await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:location.href}});
-          if(!otp.error){status('GyaanSetu account create/login ke liye email link भेज दिया गया ✓',true);return;}
-        }catch(_){}
+      let login=await c.auth.signInWithPassword({email,password});
+      if(!login.error&&login.data?.session){
+        status('Login successful ✓',true);
+        window.dispatchEvent(new CustomEvent('gyaan-auth-success',{detail:{session:login.data.session,user:login.data.user}}));
+        $('gyaanSetuAuth').classList.remove('show');
+        setTimeout(()=>location.reload(),250);
+        return;
       }
+
+      // Migrated RATHOD members have a local snapshot but may not yet have
+      // a GyaanSetu Auth user. Provision their local account with the password
+      // they entered, then sign in. No RATHOD runtime connection is used.
+      if(mode==='login'){
+        const snap=await c.from('rathod_member_snapshot')
+          .select('name,email')
+          .eq('email',email)
+          .maybeSingle();
+
+        if(snap.data?.email){
+          status('Migrated member मिला — GyaanSetu account तैयार हो रहा है…');
+          const res=await fetch(URL+'/functions/v1/gyaan-signup',{
+            method:'POST',
+            headers:{apikey:KEY,'Content-Type':'application/json'},
+            body:JSON.stringify({email,password,name:snap.data.name||name})
+          });
+          const data=await res.json().catch(()=>({}));
+          if(!res.ok&&!/already exists/i.test(String(data.error||''))){
+            throw new Error(data.error||'GyaanSetu account provision failed');
+          }
+          login=await c.auth.signInWithPassword({email,password});
+          if(login.error||!login.data?.session){
+            throw new Error(login.error?.message||'GyaanSetu account बना, लेकिन session नहीं बना.');
+          }
+          status('GyaanSetu login successful ✓',true);
+          window.dispatchEvent(new CustomEvent('gyaan-auth-success',{detail:{session:login.data.session,user:login.data.user}}));
+          $('gyaanSetuAuth').classList.remove('show');
+          setTimeout(()=>location.reload(),250);
+          return;
+        }
+      }
+
+      const msg=login.error?.message||'Login failed';
       status(msg);
     }
     finally{b.disabled=false;b.textContent=mode==='signup'?'Create Account':'Login';}

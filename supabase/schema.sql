@@ -100,8 +100,11 @@ create policy "Authors delete comments" on public.comments for delete using ((se
 insert into public.batches (name, slug, description, position)
 values
   ('Yakeen NEET Hindi 2027', 'yakeen-neet-hindi-2027', 'A focused NEET Hindi learning community.', 1),
-  ('Yakeen NEET Hindi 2.0 2027', 'yakeen-neet-hindi-2-0-2027', 'The second Yakeen NEET Hindi learning room.', 2),
-  ('Yakeen NEET Hindi 3.0 2027', 'yakeen-neet-hindi-3-0-2027', 'The third Yakeen NEET Hindi learning room.', 3)
+  ('Yakeen NEET Hindi 2025', 'yakeen-neet-hindi-2025', 'Yakeen NEET Hindi 2025 learning room.', 2),
+  ('Yakeen NEET Hindi 2.0 2025', 'yakeen-neet-hindi-2-0-2025', 'Yakeen NEET Hindi 2.0 2025 learning room.', 3),
+  ('Yakeen NEET Hindi 3.0 2025', 'yakeen-neet-hindi-3-0-2025', 'Yakeen NEET Hindi 3.0 2025 learning room.', 4),
+  ('Yakeen NEET Hindi 3.0 2027', 'yakeen-neet-hindi-3-0-2027', 'The third Yakeen NEET Hindi 2027 learning room.', 5),
+  ('Yakeen NEET Hindi 2.0 2027', 'yakeen-neet-hindi-2-0-2027', 'The second Yakeen NEET Hindi 2027 learning room.', 6)
 on conflict (slug) do update set name = excluded.name, description = excluded.description, position = excluded.position;
 
 insert into public.sections (batch_id, type, name)
@@ -130,3 +133,42 @@ create policy "Enrolled users add reactions" on public.post_reactions for insert
 drop policy if exists "Users remove own reactions" on public.post_reactions;
 create policy "Users remove own reactions" on public.post_reactions for delete using ((select auth.uid()) = user_id and public.is_post_enrolled(post_id));
 create index if not exists post_reactions_post_idx on public.post_reactions(post_id, reaction_type);
+
+
+-- YPT / Focus sessions
+-- Local-first timers can sync to this table when the user is signed in.
+create table if not exists public.focus_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date date not null,
+  seconds integer not null default 0 check (seconds >= 0),
+  subject text,
+  started_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+alter table public.focus_sessions enable row level security;
+
+drop policy if exists "Users view own focus sessions" on public.focus_sessions;
+create policy "Users view own focus sessions"
+  on public.focus_sessions for select
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "Users create own focus sessions" on public.focus_sessions;
+create policy "Users create own focus sessions"
+  on public.focus_sessions for insert
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users update own focus sessions" on public.focus_sessions;
+create policy "Users update own focus sessions"
+  on public.focus_sessions for update
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users delete own focus sessions" on public.focus_sessions;
+create policy "Users delete own focus sessions"
+  on public.focus_sessions for delete
+  using ((select auth.uid()) = user_id);
+
+create index if not exists focus_sessions_user_started_idx
+  on public.focus_sessions(user_id, started_at desc);

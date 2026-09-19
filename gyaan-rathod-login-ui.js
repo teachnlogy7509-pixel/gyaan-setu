@@ -38,7 +38,19 @@
       window.dispatchEvent(new CustomEvent('gyaan-auth-success',{detail:{session:login.data.session,user:login.data.user}}));
       $('gyaanSetuAuth').classList.remove('show');
       setTimeout(()=>location.reload(),250);
-    }catch(e){status(e&&e.message?e.message:'Login failed');}
+    }catch(e){
+      const msg=e&&e.message?e.message:'Login failed';
+      // First login from a migrated RATHOD member may not exist in GyaanSetu Auth yet.
+      // Offer the same GyaanSetu email-OTP flow so the local account is created.
+      if(mode==='login' && /invalid login credentials|user not found|email not found|invalid/i.test(msg)){
+        try{
+          const c=await getDb();
+          const otp=await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:location.href}});
+          if(!otp.error){status('GyaanSetu account create/login ke liye email link भेज दिया गया ✓',true);return;}
+        }catch(_){}
+      }
+      status(msg);
+    }
     finally{b.disabled=false;b.textContent=mode==='signup'?'Create Account':'Login';}
   }
   async function sendOtp(){

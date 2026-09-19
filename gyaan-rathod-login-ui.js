@@ -55,8 +55,8 @@
     backdrop.innerHTML = `
       <div class="gs-auth-card" role="dialog" aria-modal="true">
         <button class="gs-close" id="gsAuthClose" type="button">×</button>
-        <div class="gs-auth-logo">RH</div>
-        <h1 class="gs-auth-title">RATHOD HUB</h1>
+        <div class="gs-auth-logo" aria-label="GyaanSetu logo">GS</div>
+        <h1 class="gs-auth-title">GYAANSETU</h1>
         <p class="gs-auth-sub">Doctor's Dream · NEET Prep & Live Battles</p>
         <div class="gs-auth-tabs">
           <button id="gsAuthLoginTab" type="button" class="active">Login</button>
@@ -134,9 +134,12 @@
         }
         const result = await c.auth.signInWithPassword({ email, password });
         if (result.error) throw result.error;
+        const confirmed = result.data?.session || (await c.auth.getSession()).data?.session;
+        if (!confirmed) throw new Error('Login succeeded but session was not created. Please try again.');
+        window.dispatchEvent(new CustomEvent('gyaan-auth-success', { detail: { session: confirmed, user: confirmed.user } }));
         setStatus(mode === 'signup' ? 'Account created ✓' : 'Login successful ✓', true);
         close();
-        setTimeout(() => location.reload(), 150);
+        setTimeout(() => window.location.reload(), 250);
       } catch (error) {
         setStatus(error?.message || 'Authentication failed');
       } finally {
@@ -178,6 +181,9 @@
     }
 
     setMode('login');
+    // Remove any stale create-mode values when the overlay is reopened.
+    const openLogin = () => { setMode('login'); open(); };
+    backdrop.openLogin = openLogin;
     return backdrop;
   }
 

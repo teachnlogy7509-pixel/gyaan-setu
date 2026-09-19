@@ -217,3 +217,94 @@ drop trigger if exists gyaan_profile_admin_batches on public.profiles;
 create trigger gyaan_profile_admin_batches
 after insert or update of email,role on public.profiles
 for each row execute function public.gyaan_provision_admin_batches();
+
+
+-- Standalone GyaanSetu YPT live presence + VIP
+create table if not exists public.gyaan_ypt_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  display_name text not null default 'Learner',
+  email text,
+  pfp_url text,
+  subject text,
+  camera_enabled boolean not null default false,
+  status text not null default 'live' check(status in ('live','ended')),
+  started_at timestamptz not null default now(),
+  last_heartbeat_at timestamptz not null default now(),
+  elapsed_seconds integer not null default 0 check(elapsed_seconds>=0),
+  ended_at timestamptz
+);
+alter table public.gyaan_ypt_sessions enable row level security;
+drop policy if exists "Authenticated users can view live YPT sessions" on public.gyaan_ypt_sessions;
+create policy "Authenticated users can view live YPT sessions" on public.gyaan_ypt_sessions for select to authenticated using (true);
+drop policy if exists "Users create own YPT sessions" on public.gyaan_ypt_sessions;
+create policy "Users create own YPT sessions" on public.gyaan_ypt_sessions for insert to authenticated with check ((select auth.uid())=user_id);
+drop policy if exists "Users update own YPT sessions" on public.gyaan_ypt_sessions;
+create policy "Users update own YPT sessions" on public.gyaan_ypt_sessions for update to authenticated using ((select auth.uid())=user_id) with check ((select auth.uid())=user_id);
+create index if not exists gyaan_ypt_live_idx on public.gyaan_ypt_sessions(status,last_heartbeat_at desc);
+
+create table if not exists public.gyaan_vip_members (
+  id uuid primary key default gen_random_uuid(),
+  email text unique not null,
+  name text,
+  active boolean not null default true,
+  expires_at timestamptz,
+  source text default 'gyaan-setu',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.gyaan_vip_members enable row level security;
+drop policy if exists "Authenticated users can view VIP members" on public.gyaan_vip_members;
+create policy "Authenticated users can view VIP members" on public.gyaan_vip_members for select to authenticated using (true);
+
+create table if not exists public.gyaan_vip_coupons (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  access_days integer not null default 30 check(access_days>0 and access_days<=3650),
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+alter table public.gyaan_vip_coupons enable row level security;
+drop policy if exists "Authenticated users can read active Gyaan VIP coupons" on public.gyaan_vip_coupons;
+create policy "Authenticated users can read active Gyaan VIP coupons" on public.gyaan_vip_coupons for select to authenticated using (active=true);
+
+create or replace function public.redeem_gyaan_vip(p_code text)
+returns json
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare c record; mail text; nm text; exp timestamptz;
+begin
+  select lower(email),coalesce(display_name,name,'Learner') into mail,nm from public.profiles where id=auth.uid();
+  if mail is null then mail:=lower(auth.jwt()->>'email'); nm:=coalesce(auth.jwt()->>'email','Learner'); end if;
+  select * into c from public.gyaan_vip_coupons where lower(code)=lower(trim(p_code)) and active=true limit 1;
+  if c.id is null then return json_build_object('success',false,'error','VIP code invalid or inactive'); end if;
+  exp:=now()+make_interval(days=>c.access_days);
+  insert into public.gyaan_vip_members(email,name,active,expires_at,source,updated_at)
+  values(mail,nm,true,exp,'coupon',now())
+  on conflict(email) do update set name=excluded.name,active=true,expires_at=greatest(coalesce(public.gyaan_vip_members.expires_at,now()),excluded.expires_at),updated_at=now();
+  return json_build_object('success',true,'expires_at',exp);
+end;
+$$;
+revoke all on function public.redeem_gyaan_vip(text) from public,anon;
+grant execute on function public.redeem_gyaan_vip(text) to authenticated;
+
+create table if not exists public.rathod_member_snapshot (
+  id uuid primary key default gen_random_uuid(),
+  source_user_id uuid,
+  name text not null,
+  email text,
+  pfp_url text,
+  xp integer not null default 0,
+  score integer not null default 0,
+  level integer not null default 1,
+  season_xp integer not null default 0,
+  group_no integer not null default 1,
+  season_number integer not null default 1,
+  migrated_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.rathod_member_snapshot enable row level security;
+drop policy if exists "Authenticated users can view migrated RATHOD members" on public.rathod_member_snapshot;
+create policy "Authenticated users can view migrated RATHOD members" on public.rathod_member_snapshot for select to authenticated using (true);

@@ -78,12 +78,6 @@
     }
     finally{b.disabled=false;b.textContent=mode==='signup'?'Create Account':'Login';}
   }
-  async function sendOtp(){
-    const email=$('gsEmail').value.trim().toLowerCase();
-    if(!/^\S+@\S+\.\S+$/.test(email)) return status('पहले email डालें.');
-    try{const c=await getDb();const r=await c.auth.signInWithOtp({email,options:{shouldCreateUser:true,emailRedirectTo:location.href}});status(r.error?.message||'Email login link भेज दिया गया ✓',!r.error);}
-    catch(e){status(e?.message||'OTP login failed');}
-  }
   function build(){
     if($('gyaanSetuAuth')) return;
     const style=document.createElement('style');style.textContent=
@@ -111,7 +105,9 @@
     const open=()=>{wrap.classList.add('show');setMode('login');};const close=()=>wrap.classList.remove('show');
     const account=$('accountBtn');
     if(account&&!account.dataset.gsAuthBound){account.dataset.gsAuthBound='1';account.addEventListener('click',async e=>{e.preventDefault();e.stopImmediatePropagation();const c=await getDb();const s=(await c.auth.getSession()).data?.session;if(s&&typeof window.openProfile==='function'){try{await window.openProfile();return;}catch(_){}}open();},true);}
-    $('gsLoginTab').onclick=()=>setMode('login');$('gsSignupTab').onclick=()=>setMode('signup');$('gsSubmit').onclick=e=>{e.preventDefault();submit();};$('gsOtpLogin').onclick=sendOtp;
+    $('gsLoginTab').onclick=()=>setMode('login');
+    $('gsSignupTab').onclick=()=>setMode('signup');
+    $('gsSubmit').onclick=e=>{e.preventDefault();submit();};
     ['gsEmail','gsPassword','gsName'].forEach(id=>$(id).addEventListener('keydown',e=>{if(e.key==='Enter')submit();}));
     $('gsAuthClose').onclick=close;wrap.addEventListener('click',e=>{if(e.target===wrap)close();});
     $('gsForgot').onclick=()=>{const x=$('gsReset');x.style.display=x.style.display==='block'?'none':'block';$('gsResetEmail').value=$('gsEmail').value.trim().toLowerCase();};

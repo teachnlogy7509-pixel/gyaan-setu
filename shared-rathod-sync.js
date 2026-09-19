@@ -1,4 +1,4 @@
-/* Shared RATHOD-HUB ↔ GyaanSetu UI. The database remains the single source of truth. */
+/* Shared RATHOD-HUB ↔ GyaanSetu UI (live sync to RATHOD). */
 (() => {
   'use strict';
   if (window.__RATHOD_SHARED_UI__) return;
@@ -8,7 +8,6 @@
   const KEY = 'sb_publishable_iXAoOGZ0YppBP0Y1kJf02Q_E323DzKA';
   const esc = (value) => String(value ?? '').replace(/[&<>\"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' }[ch]));
   let db = null;
-  let user = null;
   let timer = null;
 
   const style = document.createElement('style');
@@ -25,15 +24,16 @@
   const card = document.createElement('section');
   card.id = 'rhSharedCard';
   card.innerHTML = `
-    <div class="row"><div><small>RATHOD HUB ↔ GYAANSETU</small><h2>एक shared progress space</h2><p>Leaderboard, Score, XP और coupon access दोनों projects में एक ही रहेगा।</p></div><button class="btn" id="rhRefreshShared">Refresh</button></div>
-    <div id="rhSharedStats"><div class="rhStat"><b id="rhXp">—</b><small>Total XP</small></div><div class="rhStat"><b id="rhSeasonXp">—</b><small>Season XP</small></div><div class="rhStat"><b id="rhSaka">—</b><small>Saka Score</small></div></div>
-    <div id="rhSharedTools"><input id="rhCouponInput" placeholder="RATHOD coupon code"><button id="rhRedeemCoupon">Redeem coupon</button><button id="rhLoadBoard">Shared leaderboard</button></div>
-    <div id="rhSharedStatus">Login करके shared progress देखें।</div><div id="rhSharedBoard" hidden></div>`;
+    <div class="row"><div><small>RATHOD HUB ↔ GYAANSETU</small><h2>एक live synced progress space</h2><p>YPT study time → RATHOD HUB XP/Score में live sync होता है।</p></div><button class="btn" id="rhRefreshShared">Refresh</button></div>
+    <div id="rhSharedStats"><div class="rhStat"><b id="rhXp">—</b><small>RATHOD Total XP</small></div><div class="rhStat"><b id="rhSeasonXp">—</b><small>RATHOD Season XP</small></div><div class="rhStat"><b id="rhSaka">—</b><small>Saka Score</small></div></div>
+    <div id="rhSharedTools"><input id="rhCouponInput" placeholder="RATHOD coupon code"><button id="rhRedeemCoupon">Redeem coupon</button><button id="rhLoadBoard">RATHOD leaderboard</button></div>
+    <div id="rhSharedStatus">Login करके synced progress देखें।</div><div id="rhSharedBoard" hidden></div>`;
 
   function status(message, error = false) {
     const node = document.querySelector('#rhSharedStatus');
     if (node) { node.textContent = message; node.style.color = error ? '#b45309' : '#258b68'; }
   }
+
   function putCard() {
     if (document.querySelector('#rhSharedCard')) return;
     const dashboard = document.querySelector('#dashboard');
@@ -42,54 +42,77 @@
     if (anchor) anchor.parentNode.insertBefore(card, anchor);
     else dashboard.appendChild(card);
   }
+
   function row(item) {
-    return `<div class="rhSharedRow"><span><b>#${item.rank}</b> ${esc(item.display_name)}<small>Level ${item.league_level} · Saka ${item.saka_score} · ${item.streak_days} day streak</small></span><b>${item.xp} XP</b></div>`;
+    return `<div class="rhSharedRow"><span><b>#${item.rank}</b> ${esc(item.display_name)}<small>Level ${item.league_level} · Season XP ${item.season_xp}</small></span><b>${item.xp} XP</b></div>`;
   }
-  async function loadBoard() {
-    const board = document.querySelector('#rhSharedBoard');
-    if (!board || !db || !user) { status('Login करके shared leaderboard देखें।', true); return; }
-    board.hidden = false; board.innerHTML = '<div class="empty">Shared leaderboard loading…</div>';
-    const result = await db.rpc('get_shared_leaderboard', { p_limit: 20 });
-    if (result.error) { board.innerHTML = ''; status(result.error.message, true); return; }
-    board.innerHTML = `<div class="muted" style="margin:10px 0 4px">Same leaderboard in RATHOD-HUB and GyaanSetu</div>${(result.data || []).map(row).join('') || '<div class="empty">No shared scores yet.</div>'}`;
-    status('Shared leaderboard updated.');
+
+  async function bridge(action, extra = {}) {
+    if (!db) return { error: { message: 'Sync client unavailable' } };
+    const session = await db.auth.getSession();
+    const s = session.data?.session;
+    if (!s?.user) return { error: { message: 'Login required' } };
+
+    const response = await fetch(`${URL}/functions/v1/gyaan-rathod-sync`, {
+      method: 'POST',
+      headers: { apikey: KEY, Authorization: `Bearer ${s.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...extra })
+    });
+    const result = await response.json().catch(() => ({}));
+    return response.ok ? { data: result } : { error: { message: result.error || 'Sync failed' } };
   }
+
   async function loadProgress() {
     putCard();
-    if (!db) return;
-    const session = await db.auth.getSession();
-    user = session.data?.session?.user || null;
-    if (!user) { status('Login करके shared progress देखें।', true); return; }
-    const [profile, league, access] = await Promise.all([
-      db.from('profiles').select('xp,saka_score').eq('id', user.id).maybeSingle(),
-      db.from('league_members').select('season_xp,league_level').eq('user_id', user.id).maybeSingle(),
-      db.rpc('get_hub_coupon_access')
-    ]);
-    if (profile.data) { document.querySelector('#rhXp').textContent = profile.data.xp ?? 0; document.querySelector('#rhSaka').textContent = profile.data.saka_score ?? 0; }
-    if (league.data) document.querySelector('#rhSeasonXp').textContent = league.data.season_xp ?? 0;
-    if (access.data?.active) status(`Coupon access active until ${new Date(access.data.expires_at).toLocaleDateString()}.`);
-    else status('Shared progress connected. Materials remain shared through study_pdfs.');
+    const result = await bridge('sync_progress');
+    if (result.error) { status(result.error.message, true); return; }
+    const data = result.data || {};
+    document.querySelector('#rhXp').textContent = data.xp ?? 0;
+    document.querySelector('#rhSeasonXp').textContent = data.season_xp ?? data.score ?? 0;
+    document.querySelector('#rhSaka').textContent = data.saka_score ?? 0;
+    status(`Synced with RATHOD HUB · Level ${data.league_level || 1}.`);
   }
+
+  async function loadBoard() {
+    const board = document.querySelector('#rhSharedBoard');
+    if (!board) return;
+    board.hidden = false;
+    board.innerHTML = '<div class="empty">RATHOD leaderboard loading…</div>';
+
+    const result = await bridge('leaderboard');
+    if (result.error) { board.innerHTML = ''; status(result.error.message, true); return; }
+
+    const rows = result.data?.rows || [];
+    board.innerHTML = `<div class="muted" style="margin:10px 0 4px">RATHOD HUB leaderboard (live)</div>${rows.map(row).join('') || '<div class="empty">No RATHOD scores yet.</div>'}`;
+    status('RATHOD leaderboard updated.');
+  }
+
   async function redeem() {
-    if (!db || !user) { status('पहले Login करें।', true); return; }
     const input = document.querySelector('#rhCouponInput');
     const code = input?.value.trim();
     if (!code) { status('Coupon code लिखें।', true); return; }
-    const result = await db.rpc('redeem_hub_coupon', { p_code: code });
+
+    const result = await bridge('redeem_coupon', { code });
     if (result.error) { status(result.error.message, true); return; }
     if (!result.data?.success) { status(result.data?.error || 'Coupon invalid or expired.', true); return; }
-    status(`Coupon ${result.data.code} active until ${new Date(result.data.expires_at).toLocaleDateString()}.`);
+
+    status(`RATHOD VIP active until ${new Date(result.data.expires_at).toLocaleDateString()}.`);
     input.value = '';
   }
+
   async function start() {
     putCard();
     const mod = await import('https://esm.sh/@supabase/supabase-js@2');
     db = mod.createClient(URL, KEY);
+
     document.querySelector('#rhRefreshShared')?.addEventListener('click', loadProgress);
     document.querySelector('#rhLoadBoard')?.addEventListener('click', loadBoard);
     document.querySelector('#rhRedeemCoupon')?.addEventListener('click', redeem);
+
     await loadProgress();
     timer = window.setInterval(loadProgress, 30000);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();

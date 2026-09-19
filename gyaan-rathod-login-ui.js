@@ -130,41 +130,16 @@
       setStatus('');
     }
 
-    async function migrateFromRathod(email, password, name) {
-      const { gyaan: gc, rathod: rc } = await clients();
-      setStatus('RATHOD HUB account verify हो रहा है…');
-      const check = await rc.auth.signInWithPassword({ email, password });
-      if (check.error) throw new Error('RATHOD HUB account verify नहीं हुआ: ' + check.error.message);
-
-      // Create the same email/password in GyaanSetu through the existing admin signup function.
-      const response = await fetch(`${GYAAN_URL}/functions/v1/gyaan-signup`, {
-        method: 'POST',
-        headers: { apikey: GYAAN_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
-      });
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok && !/already exists/i.test(String(result.error || ''))) {
-        throw new Error(result.error || 'GyaanSetu account migration failed');
-      }
-
-      const login = await gc.auth.signInWithPassword({ email, password });
-      if (login.error) {
-        const otp = await gc.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-        if (otp.error) throw new Error(login.error.message);
-        setStatus('RATHOD account verify हो गया. GyaanSetu login link email पर भेजा है.', true);
-        return false;
-      }
-
-      return login.data?.session || null;
-    }
-
     async function submit() {
       const email = $('gsAuthEmail').value.trim().toLowerCase();
       const password = $('gsAuthPassword').value;
       const name = $('gsAuthName').value.trim() || email.split('@')[0] || 'Learner';
 
-      if (!/^\S+@\S+\.\S+$/.test(email)) return setStatus('Valid email address डालें.');
+      if (!/^const { createClient } = await loadSupabase();
+    gyaan = gyaan || createClient(GYAAN_URL, GYAAN_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+    return { gyaan };S+@\S+\.\S+$/.test(email)) return setStatus('Valid email address डालें.');
       if (password.length < 6) return setStatus('Password कम से कम 6 characters का होना चाहिए.');
 
       const button = $('gsAuthSubmit');
@@ -173,7 +148,7 @@
       $('gsMigrate').style.display = 'none';
 
       try {
-        const { gyaan: gc, rathod: rc } = await clients();
+        const { gyaan: gc } = await clients();
 
         if (mode === 'signup') {
           const response = await fetch(`${GYAAN_URL}/functions/v1/gyaan-signup`, {
@@ -200,19 +175,7 @@
           return;
         }
 
-        // Existing RATHOD HUB user: preserve the exact same credentials by creating a GyaanSetu account with them.
-        try {
-          const migrated = await migrateFromRathod(email, password, name);
-          if (migrated) {
-            setStatus('RATHOD HUB account migrated ✓', true);
-            close();
-            setTimeout(() => window.location.reload(), 250);
-            return;
-          }
-          return;
-        } catch (migrationError) {
-          throw new Error(login.error?.message || migrationError?.message || 'Login failed');
-        }
+        throw new Error(login.error?.message || 'Login failed');
       } catch (error) {
         setStatus(error?.message || 'Login failed');
       } finally {

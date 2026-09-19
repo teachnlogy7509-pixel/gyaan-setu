@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GyaanSetu · RATHOD HUB Leaderboard</title>
+<style>
+:root{--bg:#f4f7f7;--card:#fff;--ink:#101a24;--muted:#6b7780;--line:#dce6e7;--violet:#5c50d6;--gold:#ed9858}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:24px 15px 50px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}
+.brand{font-size:20px;font-weight:900}.brand b{color:var(--gold)}.back{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 12px;text-decoration:none;color:var(--ink);font-weight:800;font-size:11px}
+.hero{background:linear-gradient(135deg,#111820,#273944);color:#fff;border-radius:16px;padding:20px;margin-bottom:14px}.hero small{color:#8eeafe;font-size:9px;letter-spacing:.16em;font-weight:900}.hero h1{margin:5px 0;font-size:27px}.hero p{margin:0;color:#c8d2d7;font-size:11px}
+.me{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px}.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px}.stat small{display:block;color:var(--muted);font-size:9px}.stat b{display:block;margin-top:3px;font-size:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}.head{padding:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.head b{font-size:14px}.live{font-size:9px;color:#258b68;font-weight:900}
+.row{display:grid;grid-template-columns:48px minmax(0,1fr) 100px 100px 70px;gap:8px;align-items:center;padding:11px 14px;border-bottom:1px solid #edf1f2}.row:last-child{border-bottom:0}.rank{font-weight:900;color:var(--violet)}.name b{display:block;font-size:11px}.name small{display:block;color:var(--muted);font-size:8px;margin-top:2px}.v{text-align:right;font-weight:850;font-size:10px}.empty{padding:24px;text-align:center;color:var(--muted);font-size:11px}
+@media(max-width:620px){.row{grid-template-columns:34px minmax(0,1fr) 66px 66px 48px;padding:10px}.me{grid-template-columns:1fr 1fr 1fr}.v{font-size:9px}.hero h1{font-size:23px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="brand">gyaan<b>setu</b></div><a class="back" href="./">← Back to GyaanSetu</a></div>
+  <section class="hero">
+    <small>GYAANSETU ↔ RATHOD HUB</small>
+    <h1>🏆 RATHOD HUB Leaderboard</h1>
+    <p>Live shared leaderboard · Name · XP · Score · Season XP · Level</p>
+  </section>
+  <div class="me">
+    <div class="stat"><small>Your XP</small><b id="myXp">—</b></div>
+    <div class="stat"><small>Your Score</small><b id="myScore">—</b></div>
+    <div class="stat"><small>Your Level</small><b id="myLevel">—</b></div>
+  </div>
+  <section class="card">
+    <div class="head"><b>RATHOD HUB Competitive Board</b><span class="live">● LIVE SYNC</span></div>
+    <div id="board"><div class="empty">Loading leaderboard…</div></div>
+  </section>
+</div>
+<script type="module">
+const URL='https://oicluhfdvaroqvhwfwyp.supabase.co';
+const KEY='sb_publishable_iXAoOGZ0YppBP0Y1kJf02Q_E323DzKA';
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function main(){
+  const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+  const db=createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const [lb,me]=await Promise.all([
+    db.rpc('get_shared_leaderboard',{p_limit:50}),
+    db.auth.getSession()
+  ]);
+  const rows=lb.data||[];
+  document.getElementById('board').innerHTML=rows.length?rows.map(x=>`
+    <div class="row">
+      <div class="rank">#${esc(x.rank)}</div>
+      <div class="name"><b>${esc(x.display_name||'Learner')}</b><small>Level ${esc(x.league_level||1)} · Season XP ${Number(x.season_xp||0).toLocaleString()}</small></div>
+      <div class="v">${Number(x.xp||0).toLocaleString()} XP</div>
+      <div class="v">Score ${Number(x.saka_score??x.score??x.season_xp??0).toLocaleString()}</div>
+      <div class="v">L${esc(x.league_level||1)}</div>
+    </div>`).join(''):`<div class="empty">${esc(lb.error?.message||'No leaderboard data yet.')}</div>`;
+  if(me.data?.session?.user){
+    const p=await db.from('profiles').select('xp,saka_score,level').eq('id',me.data.session.user.id).maybeSingle();
+    document.getElementById('myXp').textContent=Number(p.data?.xp||0).toLocaleString();
+    document.getElementById('myScore').textContent=Number(p.data?.saka_score||0).toLocaleString();
+    document.getElementById('myLevel').textContent='Level '+Number(p.data?.level||1);
+  }
+}
+main().catch(e=>document.getElementById('board').innerHTML='<div class="empty">'+esc(e?.message||'Leaderboard load failed.')+'</div>');
+</script>
+</body>
+</html>

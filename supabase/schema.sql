@@ -172,3 +172,48 @@ create policy "Users delete own focus sessions"
 
 create index if not exists focus_sessions_user_started_idx
   on public.focus_sessions(user_id, started_at desc);
+
+
+-- Designated GyaanSetu admin
+create or replace function public.gyaan_set_admin_role()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if lower(coalesce(new.email,'')) = 'ashisharmy1982@gmail.com' then
+    new.role := 'admin';
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.gyaan_provision_admin_batches()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if lower(coalesce(new.email,'')) = 'ashisharmy1982@gmail.com'
+     and lower(coalesce(new.role,'')) = 'admin' then
+    insert into public.batch_enrollments(batch_id,user_id,role,status,enrolled_at)
+    select b.id,new.id,'admin','active',now()
+    from public.batches b
+    on conflict (batch_id,user_id) do update
+      set role='admin',status='active';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists gyaan_profile_admin_role on public.profiles;
+create trigger gyaan_profile_admin_role
+before insert or update of email on public.profiles
+for each row execute function public.gyaan_set_admin_role();
+
+drop trigger if exists gyaan_profile_admin_batches on public.profiles;
+create trigger gyaan_profile_admin_batches
+after insert or update of email,role on public.profiles
+for each row execute function public.gyaan_provision_admin_batches();
